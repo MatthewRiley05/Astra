@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+  # Open WebUI Service
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
@@ -13,5 +14,18 @@ services:
     volumes:
       - open-webui-data:/app/backend/data
 
+  # Piper Service
+  tts:
+    build: ./tts
+    container_name: piper-tts
+    restart: always
+    ports:
+      - "5500:5500"
+    environment:
+      PIPER_VOICES: en_US-amy-medium
+    volumes:
+      - piper-voices:/voices
+
 volumes:
   open-webui-data:
+  piper-voices:
