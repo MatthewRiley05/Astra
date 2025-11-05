@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+  # Open WebUI Service
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
@@ -13,5 +14,32 @@ services:
     volumes:
       - open-webui-data:/app/backend/data
 
+  # Piper Service
+  tts:
+    build: ./tts
+    container_name: piper-tts
+    restart: always
+    ports:
+      - "5500:5500"
+    environment:
+      PIPER_VOICES: en_US-amy-medium
+    volumes:
+      - piper-voices:/voices
+
+  # Sentiment Analyzer Service
+  sentiment-analyzer:
+    build: ./sentiment
+    container_name: sentiment-analyzer
+    restart: always
+    ports:
+      - "5501:5501"
+    environment:
+      # Use your existing DeepSeek key or set OPENAI_API_KEY directly in a .env file
+      OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
+      OPENAI_API_BASE_URL: https://api.deepseek.com/v1
+      # DeepSeek model (not gpt-3.5-turbo)
+      OPENAI_MODEL: deepseek-chat
+
 volumes:
   open-webui-data:
+  piper-voices:
