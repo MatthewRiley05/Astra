@@ -165,10 +165,12 @@ def get_sentiment(req: SentimentRequest):
 
         # Check if any news was found
         if not links or len(links) == 0:
+            no_news_summary = f"No recent news articles found for {req.asset} on {date if date else 'today'}. Unable to determine sentiment from news sources. Consider checking a different date or the news may be limited for this asset."
             return {
                 "asset": req.asset,
                 "date": date if date else "today",
                 "sentiment": "neutral",
+                "summary": no_news_summary,
                 "analysis_source": "No news articles found for this date",
                 "links": [],
                 "news_previews": [],
@@ -195,10 +197,28 @@ def get_sentiment(req: SentimentRequest):
                     {"url": url, "preview": "[Unable to fetch article content]"}
                 )
 
+        # Create a natural language summary for the AI to use
+        summary_parts = [
+            f"Sentiment for {req.asset} on {date}: {sentiment.upper()}",
+            f"Analysis based on {len(links)} recent news articles from Google News.",
+        ]
+
+        if news_previews:
+            summary_parts.append("\nNews sources analyzed:")
+            for i, preview in enumerate(news_previews, 1):
+                # Extract domain name for readability
+                from urllib.parse import urlparse
+
+                domain = urlparse(preview["url"]).netloc
+                summary_parts.append(f"{i}. {domain}")
+
+        summary = "\n".join(summary_parts)
+
         return {
             "asset": req.asset,
             "date": date,
             "sentiment": sentiment,
+            "summary": summary,  # New field for AI-friendly summary
             "analysis_source": "Analyzed from Google News search results and article content",
             "links": links,
             "news_previews": news_previews,
