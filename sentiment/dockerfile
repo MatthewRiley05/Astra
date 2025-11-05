@@ -12,6 +12,10 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Apply patch to fix asset-sentiment-analyzer Google search bug
+COPY fix_websearch.py ./
+RUN python fix_websearch.py && rm fix_websearch.py
+
 # App code
 COPY app.py ./
 
