@@ -26,6 +26,20 @@ services:
     volumes:
       - piper-voices:/voices
 
+  # Sentiment Analyzer Service
+  sentiment-analyzer:
+    build: ./sentiment
+    container_name: sentiment-analyzer
+    restart: always
+    ports:
+      - "5501:5501"
+    environment:
+      # Use your existing DeepSeek key or set OPENAI_API_KEY directly in a .env file
+      OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
+      OPENAI_API_BASE_URL: https://api.deepseek.com/v1
+      # Optionally override model via .env (falls back to package default)
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+
 volumes:
   open-webui-data:
   piper-voices:
