@@ -1,23 +1,39 @@
 FROM python:3.11-slim
 
-# System dependencies (keep minimal). Some analyzers may parse HTML; add curl for diagnostics.
+# Non-root user for security
+RUN useradd -m -u 1000 appuser
+
+# Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 WORKDIR /app
 
-# Python deps
+# Copy requirements first for better layer caching
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Apply patch to fix asset-sentiment-analyzer Google search bug
 COPY fix_websearch.py ./
 RUN python fix_websearch.py && rm fix_websearch.py
 
-# App code
+# Copy application code
 COPY app.py ./
 
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5501/health || exit 1
+
 EXPOSE 5501
+
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5501"]
