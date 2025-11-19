@@ -206,9 +206,7 @@ def _fetch_news_previews(analyzer: Any, links: list, max_previews: int = 3) -> l
 def _create_no_news_summary(asset: str, date: Optional[str]) -> str:
     """Create summary for when no news is found."""
     date_display = date if date else "today"
-    return f"""[INSTRUCTION FOR AI ASSISTANT: Present this no-news scenario in a clear, formatted way using a markdown table.]
-
-Present the following sentiment analysis results in a professional table format:
+    return f"""# Sentiment Analysis Results
 
 | **Metric** | **Value** |
 |------------|-----------|
@@ -218,8 +216,8 @@ Present the following sentiment analysis results in a professional table format:
 | **Articles Analyzed** | 0 |
 | **Status** | ⚠️ No News Available |
 
-### Analysis Note
-No recent news articles were found for {asset} on {date_display}. This could be due to:
+## Analysis Note
+No recent news articles were found for **{asset}** on **{date_display}**. This could be due to:
 - Limited news coverage for this asset
 - The date selected may not have significant news activity
 - The asset name may need verification
@@ -230,13 +228,11 @@ No recent news articles were found for {asset} on {date_display}. This could be 
 def _create_sentiment_summary(
     asset: str, date: Optional[str], sentiment: str, links: list, news_previews: list
 ) -> str:
-    """Create formatted sentiment summary for AI presentation."""
+    """Create formatted sentiment summary."""
     date_display = date if date else "today"
     sentiment_emoji = _get_sentiment_emoji(sentiment)
 
-    summary = f"""[INSTRUCTION FOR AI ASSISTANT: Present this sentiment analysis data in a clean, well-formatted table. Use markdown table format with clear headers and rows. Make it visually appealing and easy to read. Make sure all URLs in the news sources are formatted as clickable hyperlinks using markdown link syntax [text](url).]
-
-Present the following sentiment analysis results in a professional table format:
+    summary = f"""# Sentiment Analysis Results
 
 | **Metric** | **Value** |
 |------------|-----------|
@@ -246,11 +242,11 @@ Present the following sentiment analysis results in a professional table format:
 | **Articles Analyzed** | {len(links)} |
 | **Data Source** | Google News |
 
-### Market Sentiment Analysis
+## Market Sentiment Analysis
 The current market sentiment for **{asset}** is **{sentiment.upper()} {sentiment_emoji}** based on analysis of {len(links)} recent news articles."""
 
     if news_previews:
-        summary += "\n\n### News Sources Analyzed"
+        summary += "\n\n## News Sources Analyzed"
         for i, preview in enumerate(news_previews[:3], 1):
             domain = urlparse(preview["url"]).netloc
             preview_text = preview["preview"].split("\n")[0][:150]
