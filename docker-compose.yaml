@@ -60,9 +60,7 @@ services:
     ports:
       - "5501:5501"
     environment:
-      OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
-      OPENAI_API_BASE_URL: https://api.deepseek.com/v1
-      OPENAI_MODEL: deepseek-chat
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5501/health"]
       interval: 30s
