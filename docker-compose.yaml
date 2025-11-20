@@ -74,6 +74,30 @@ services:
         reservations:
           memory: 256M
 
+  # Email Scheduler Service
+  email-scheduler:
+    build:
+      context: ./email
+      dockerfile: dockerfile
+    container_name: email-scheduler
+    restart: unless-stopped
+    ports:
+      - "5502:5502"
+    environment:
+      GMAIL_CREDENTIALS: ${GMAIL_CREDENTIALS}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5502/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
 volumes:
   open-webui-data:
     driver: local

@@ -4,17 +4,15 @@ import feedparser
 from datetime import datetime, timedelta
 from openai import OpenAI
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 app = FastAPI(title="Sentiment Analyzer API")
 
-DATE_FORMAT = "%Y-%m-%d"
-
 
 class SentimentRequest(BaseModel):
-    asset: str = Field(..., description="Target asset/security")
-    start_date: str | None = Field(None, description="Start date (YYYY-MM-DD)")
-    end_date: str | None = Field(None, description="End date (YYYY-MM-DD)")
+    asset: str
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 @app.get("/health")
@@ -24,69 +22,53 @@ def health():
 
 @app.post("/v1/sentiment")
 def get_sentiment(req: SentimentRequest):
-    # Set date defaults
-    today = (datetime.now() + timedelta(days=1)).strftime(DATE_FORMAT)
-    seven_days_ago = (datetime.now() - timedelta(days=7)).strftime(DATE_FORMAT)
-    start_date = req.start_date or seven_days_ago
-    end_date = req.end_date or today
+    # Date defaults
+    today = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    start, end = req.start_date or week_ago, req.end_date or today
 
-    # Fetch news from Google RSS
-    feed_url = f"https://news.google.com/rss/search?q={urllib.parse.quote(req.asset)}+after:{start_date}+before:{end_date}"
-    feed = feedparser.parse(feed_url)
-    entries = feed.entries
+    # Fetch news
+    url = f"https://news.google.com/rss/search?q={urllib.parse.quote(req.asset)}+after:{start}+before:{end}"
+    entries = feedparser.parse(url).entries
 
     if not entries:
         return {
             "asset": req.asset,
-            "start_date": start_date,
-            "end_date": end_date,
-            "analysis": "No news articles found",
+            "start_date": start,
+            "end_date": end,
+            "analysis": "No news found",
         }
 
-    # Collect headlines
-    all_headlines = ""
-    data = []
-    for entry in entries:
-        title = entry.title
-        all_headlines += title + " "
-        data.append(
-            {
-                "title": title,
-                "link": entry.link,
-                "published": entry.get("published", ""),
-            }
-        )
+    # Extract articles
+    articles = [
+        {"title": e.title, "link": e.link, "published": e.get("published", "")}
+        for e in entries
+    ]
+    headlines = " ".join(e.title for e in entries)
 
-    # Analyze sentiment with DeepSeek
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    # Analyze with LLM
+    api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="DEEPSEEK_API_KEY not set")
+        raise HTTPException(500, "DEEPSEEK_API_KEY not set")
 
     client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-
-    question = "What is the overall sentiment? Provide a sentiment score between -1 to 1 and elaborate your reasons"
-    question_with_context = (
-        question + "  Use the following context: \n\n" + all_headlines
-    )
+    prompt = f"What is the overall sentiment? Provide a sentiment score between -1 to 1 and elaborate your reasons. Use the following context:\n\n{headlines}"
 
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=[
             {
                 "role": "system",
-                "content": "You are a helpful financial expert, you do not answer questions unrelated to finance.",
+                "content": "You are a financial expert analyzing market sentiment.",
             },
-            {"role": "user", "content": question_with_context},
+            {"role": "user", "content": prompt},
         ],
-        stream=False,
     )
-
-    analysis = response.choices[0].message.content
 
     return {
         "asset": req.asset,
-        "start_date": start_date,
-        "end_date": end_date,
-        "analysis": analysis,
-        "articles": data,
+        "start_date": start,
+        "end_date": end,
+        "analysis": response.choices[0].message.content,
+        "articles": articles,
     }
