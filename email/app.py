@@ -50,16 +50,27 @@ class SentimentEmailRequest(BaseModel):
     to: EmailStr
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    format: Literal["text", "pdf"] = Field(default="text", description="Email format: 'text' for plain text or 'pdf' for PDF attachment")
+    format: Literal["text", "pdf"] = Field(
+        default="text",
+        description="Email format: 'text' for plain text or 'pdf' for PDF attachment",
+    )
 
 
 class ScheduledSentimentEmailRequest(BaseModel):
     asset: str
     to: EmailStr
-    interval_minutes: int = Field(..., description="Interval in minutes between emails (e.g., 5 for every 5 minutes, 60 for hourly)")
-    duration_minutes: int = Field(..., description="Total duration in minutes to send emails")
+    interval_minutes: int = Field(
+        ...,
+        description="Interval in minutes between emails (e.g., 5 for every 5 minutes, 60 for hourly)",
+    )
+    duration_minutes: int = Field(
+        ..., description="Total duration in minutes to send emails"
+    )
     start_time: Optional[str] = None
-    format: Literal["text", "pdf"] = Field(default="text", description="Email format: 'text' for plain text or 'pdf' for PDF attachment")
+    format: Literal["text", "pdf"] = Field(
+        default="text",
+        description="Email format: 'text' for plain text or 'pdf' for PDF attachment",
+    )
 
 
 class JobResponse(BaseModel):
@@ -69,100 +80,120 @@ class JobResponse(BaseModel):
 
 
 # Gmail API
-def generate_sentiment_pdf(asset: str, start: str, end: str, analysis: str, articles: list) -> bytes:
+def generate_sentiment_pdf(
+    asset: str, start: str, end: str, analysis: str, articles: list
+) -> bytes:
     """Generate a PDF report for sentiment analysis"""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
-    
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=18,
+    )
+
     story = []
     styles = getSampleStyleSheet()
-    
+
     # Custom styles
     title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
+        "CustomTitle",
+        parent=styles["Heading1"],
         fontSize=24,
-        textColor='#1a1a1a',
+        textColor="#1a1a1a",
         spaceAfter=30,
-        alignment=TA_CENTER
+        alignment=TA_CENTER,
     )
-    
+
     heading_style = ParagraphStyle(
-        'CustomHeading',
-        parent=styles['Heading2'],
+        "CustomHeading",
+        parent=styles["Heading2"],
         fontSize=14,
-        textColor='#333333',
+        textColor="#333333",
         spaceAfter=12,
-        spaceBefore=12
+        spaceBefore=12,
     )
-    
+
     normal_style = ParagraphStyle(
-        'CustomNormal',
-        parent=styles['Normal'],
+        "CustomNormal",
+        parent=styles["Normal"],
         fontSize=10,
-        textColor='#444444',
-        alignment=TA_LEFT
+        textColor="#444444",
+        alignment=TA_LEFT,
     )
-    
+
     # Title
     story.append(Paragraph(f"Sentiment Analysis Report", title_style))
-    story.append(Spacer(1, 0.2*inch))
-    
+    story.append(Spacer(1, 0.2 * inch))
+
     # Metadata
     story.append(Paragraph(f"<b>Asset:</b> {asset}", normal_style))
     story.append(Paragraph(f"<b>Date Range:</b> {start} to {end}", normal_style))
-    story.append(Paragraph(f"<b>Generated:</b> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}", normal_style))
-    story.append(Spacer(1, 0.3*inch))
-    
+    story.append(
+        Paragraph(
+            f"<b>Generated:</b> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+            normal_style,
+        )
+    )
+    story.append(Spacer(1, 0.3 * inch))
+
     # Analysis section
     story.append(Paragraph("Analysis", heading_style))
-    analysis_lines = analysis.split('\n')
+    analysis_lines = analysis.split("\n")
     for line in analysis_lines:
         if line.strip():
             story.append(Paragraph(line, normal_style))
-            story.append(Spacer(1, 0.1*inch))
-    
-    story.append(Spacer(1, 0.3*inch))
-    
+            story.append(Spacer(1, 0.1 * inch))
+
+    story.append(Spacer(1, 0.3 * inch))
+
     # Articles section
     story.append(Paragraph(f"News Articles ({len(articles)} found)", heading_style))
-    story.append(Spacer(1, 0.1*inch))
-    
+    story.append(Spacer(1, 0.1 * inch))
+
     for i, article in enumerate(articles[:15], 1):
-        title = article.get('title', 'No title')
-        link = article.get('link', 'N/A')
-        published = article.get('published', '')
-        
+        title = article.get("title", "No title")
+        link = article.get("link", "N/A")
+        published = article.get("published", "")
+
         story.append(Paragraph(f"<b>{i}. {title}</b>", normal_style))
-        story.append(Paragraph(f"<i>Link:</i> <link href='{link}'>{link}</link>", normal_style))
+        story.append(
+            Paragraph(f"<i>Link:</i> <link href='{link}'>{link}</link>", normal_style)
+        )
         if published:
             story.append(Paragraph(f"<i>Published:</i> {published}", normal_style))
-        story.append(Spacer(1, 0.15*inch))
-    
+        story.append(Spacer(1, 0.15 * inch))
+
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
 
 
-def send_email_with_attachment(to: str, subject: str, body: str, attachment_data: bytes, attachment_name: str) -> str:
+def send_email_with_attachment(
+    to: str, subject: str, body: str, attachment_data: bytes, attachment_name: str
+) -> str:
     """Send email with PDF attachment"""
     service = get_gmail_service()
-    
+
     msg = MIMEMultipart()
-    msg['To'] = to
-    msg['Subject'] = subject
-    
+    msg["To"] = to
+    msg["Subject"] = subject
+
     # Attach text body
-    msg.attach(MIMEText(body, 'plain'))
-    
+    msg.attach(MIMEText(body, "plain"))
+
     # Attach PDF
-    pdf_part = MIMEApplication(attachment_data, _subtype='pdf')
-    pdf_part.add_header('Content-Disposition', 'attachment', filename=attachment_name)
+    pdf_part = MIMEApplication(attachment_data, _subtype="pdf")
+    pdf_part.add_header("Content-Disposition", "attachment", filename=attachment_name)
     msg.attach(pdf_part)
-    
+
     encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    result = service.users().messages().send(userId='me', body={'raw': encoded}).execute()
-    return result['id']
+    result = (
+        service.users().messages().send(userId="me", body={"raw": encoded}).execute()
+    )
+    return result["id"]
 
 
 def get_gmail_service():
@@ -212,7 +243,9 @@ def send_now(req: EmailRequest):
 @app.post("/v1/schedule", response_model=JobResponse)
 def schedule(req: ScheduleEmailRequest):
     start_dt = (
-        datetime.fromisoformat(req.start_time) if req.start_time else datetime.now(timezone.utc)
+        datetime.fromisoformat(req.start_time)
+        if req.start_time
+        else datetime.now(timezone.utc)
     )
 
     triggers = {
@@ -266,7 +299,9 @@ def cancel_job(job_id: str):
 @app.post("/v1/send-sentiment")
 def send_sentiment(req: SentimentEmailRequest):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    start = req.start_date or (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    start = req.start_date or (datetime.now(timezone.utc) - timedelta(days=7)).strftime(
+        "%Y-%m-%d"
+    )
     end = req.end_date or today
 
     # Fetch sentiment
@@ -288,7 +323,7 @@ def send_sentiment(req: SentimentEmailRequest):
     if req.format == "pdf":
         # Generate PDF
         pdf_data = generate_sentiment_pdf(req.asset, start, end, analysis, articles)
-        
+
         # Simple text body for PDF attachment
         body = f"""Sentiment Analysis Report
 
@@ -298,15 +333,15 @@ Date Range: {start} to {end}
 Articles Analyzed: {len(articles)}
 
 ---
-Report generated at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"""
-        
+Report generated at {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}"""
+
         filename = f"sentiment_analysis_{req.asset}_{start}_to_{end}.pdf"
         msg_id = send_email_with_attachment(
-            req.to, 
-            f"Sentiment Analysis: {req.asset} ({start} to {end})", 
+            req.to,
+            f"Sentiment Analysis: {req.asset} ({start} to {end})",
             body,
             pdf_data,
-            filename
+            filename,
         )
     else:
         # Format text email
@@ -327,9 +362,7 @@ NEWS ARTICLES ({len(articles)} found):
                 body += f"\n   Published: {article['published']}"
             body += "\n"
 
-        body += (
-            f"\n---\nReport generated at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-        )
+        body += f"\n---\nReport generated at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
 
         # Send
         msg_id = send_email(
@@ -375,7 +408,7 @@ def fetch_and_send_sentiment(to: str, asset: str, format: str = "text"):
     if format == "pdf":
         # Generate PDF
         pdf_data = generate_sentiment_pdf(asset, start, end, analysis, articles)
-        
+
         # Simple text body for PDF attachment
         body = f"""Hourly Sentiment Analysis Report
 
@@ -385,11 +418,13 @@ Date Range: {start} to {end}
 Articles Analyzed: {len(articles)}
 
 ---
-Report generated at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"""
-        
+Report generated at {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}"""
+
         filename = f"hourly_sentiment_{asset}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.pdf"
         try:
-            send_email_with_attachment(to, f"Hourly Sentiment Update: {asset}", body, pdf_data, filename)
+            send_email_with_attachment(
+                to, f"Hourly Sentiment Update: {asset}", body, pdf_data, filename
+            )
             print(f"Sent hourly sentiment PDF for {asset} to {to}")
         except Exception as e:
             print(f"Failed to send email: {str(e)}")
@@ -412,9 +447,7 @@ NEWS ARTICLES ({len(articles)} found):
                 body += f"\n   Published: {article['published']}"
             body += "\n"
 
-        body += (
-            f"\n---\nReport generated at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-        )
+        body += f"\n---\nReport generated at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
 
         # Send
         try:
@@ -436,16 +469,20 @@ def schedule_sentiment(req: ScheduledSentimentEmailRequest):
     Format can be 'text' (default) or 'pdf' for PDF attachment.
     """
     start_dt = (
-        datetime.fromisoformat(req.start_time) if req.start_time else datetime.now(timezone.utc)
+        datetime.fromisoformat(req.start_time)
+        if req.start_time
+        else datetime.now(timezone.utc)
     )
-    
+
     # Calculate end time
     end_dt = start_dt + timedelta(minutes=req.duration_minutes)
 
     job_id = f"sentiment_{req.asset}_{datetime.now(timezone.utc).timestamp()}"
     job = scheduler.add_job(
         fetch_and_send_sentiment,
-        trigger=IntervalTrigger(minutes=req.interval_minutes, start_date=start_dt, end_date=end_dt),
+        trigger=IntervalTrigger(
+            minutes=req.interval_minutes, start_date=start_dt, end_date=end_dt
+        ),
         args=[req.to, req.asset, req.format],
         id=job_id,
         replace_existing=True,
