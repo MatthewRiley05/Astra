@@ -51,10 +51,7 @@ def get_company_tickers(user_agent: str = "financial-api@example.com"):
     try:
         retriever = EdgarRetriever(user_agent=user_agent)
         data = retriever.get_company_tickers_exchange()
-        return {
-            "count": len(data),
-            "data": data.to_dict(orient="records")
-        }
+        return {"count": len(data), "data": data.to_dict(orient="records")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -65,11 +62,10 @@ def get_cik(req: CompanyRequest):
     try:
         retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
         if retriever.current_cik is None:
-            raise HTTPException(status_code=404, detail=f"No CIK found for ticker: {req.ticker}")
-        return {
-            "ticker": req.ticker,
-            "cik": retriever.current_cik
-        }
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+        return {"ticker": req.ticker, "cik": retriever.current_cik}
     except HTTPException:
         raise
     except Exception as e:
@@ -82,14 +78,16 @@ def get_company_filings(req: CompanyRequest):
     try:
         retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
         if retriever.current_cik is None:
-            raise HTTPException(status_code=404, detail=f"No CIK found for ticker: {req.ticker}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
         filings = retriever.get_company_file_data()
         return {
             "ticker": req.ticker,
             "cik": retriever.current_cik,
             "count": len(filings),
-            "filings": filings.to_dict(orient="records")
+            "filings": filings.to_dict(orient="records"),
         }
     except HTTPException:
         raise
@@ -108,7 +106,7 @@ def get_inter_frame_data(req: InterFrameRequest):
             "year": req.year,
             "quarter": req.quarter,
             "count": len(data),
-            "data": data.to_dict(orient="records")
+            "data": data.to_dict(orient="records"),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -120,14 +118,16 @@ def get_intra_concept_data(req: IntraConceptRequest):
     try:
         retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
         if retriever.current_cik is None:
-            raise HTTPException(status_code=404, detail=f"No CIK found for ticker: {req.ticker}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
         response = retriever.get_intra_conceptData(req.tag)
         return {
             "ticker": req.ticker,
             "cik": retriever.current_cik,
             "tag": req.tag,
-            "data": response.json()
+            "data": response.json(),
         }
     except HTTPException:
         raise
@@ -141,17 +141,19 @@ def get_shares_outstanding(req: CompanyRequest):
     try:
         retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
         if retriever.current_cik is None:
-            raise HTTPException(status_code=404, detail=f"No CIK found for ticker: {req.ticker}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
         shares = retriever.get_CompanyShare_History()
         if isinstance(shares, str):
             raise HTTPException(status_code=404, detail=shares)
-        
+
         return {
             "ticker": req.ticker,
             "cik": retriever.current_cik,
             "count": len(shares),
-            "data": shares.to_dict(orient="records")
+            "data": shares.to_dict(orient="records"),
         }
     except HTTPException:
         raise
@@ -165,17 +167,19 @@ def get_float_shares(req: CompanyRequest):
     try:
         retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
         if retriever.current_cik is None:
-            raise HTTPException(status_code=404, detail=f"No CIK found for ticker: {req.ticker}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
         float_shares = retriever.get_CompanyFloat_History()
         if isinstance(float_shares, str):
             raise HTTPException(status_code=404, detail=float_shares)
-        
+
         return {
             "ticker": req.ticker,
             "cik": retriever.current_cik,
             "count": len(float_shares),
-            "data": float_shares.to_dict(orient="records")
+            "data": float_shares.to_dict(orient="records"),
         }
     except HTTPException:
         raise
@@ -189,26 +193,28 @@ def calculate_percent_change(req: PercentChangeRequest):
     try:
         retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
         if retriever.current_cik is None:
-            raise HTTPException(status_code=404, detail=f"No CIK found for ticker: {req.ticker}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
         # Get data based on type
         if req.data_type == "shares":
             data = retriever.get_CompanyShare_History()
         else:
             data = retriever.get_CompanyFloat_History()
-        
+
         if isinstance(data, str):
             raise HTTPException(status_code=404, detail=data)
-        
+
         # Calculate percent change
         pct_change = retriever.pct_change(data, req.time_field, req.y_field)
-        
+
         return {
             "ticker": req.ticker,
             "cik": retriever.current_cik,
             "data_type": req.data_type,
             "cagr": pct_change.get("CAGR"),
-            "total_return": pct_change.get("total_return")
+            "total_return": pct_change.get("total_return"),
         }
     except HTTPException:
         raise
@@ -220,4 +226,5 @@ def calculate_percent_change(req: PercentChangeRequest):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=5503)
