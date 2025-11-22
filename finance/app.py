@@ -40,6 +40,20 @@ class PercentChangeRequest(BaseModel):
     user_agent: str = "financial-api@example.com"
 
 
+class FinancialStatementRequest(BaseModel):
+    ticker: str
+    statement_type: Literal["income_statement", "balance_sheet", "cash_flow"]
+    periods: int = 1
+    annual: bool = False
+    concise_format: bool = True
+    user_agent: str = "financial-api@example.com"
+
+
+class CompanyInfoRequest(BaseModel):
+    ticker: str
+    user_agent: str = "financial-api@example.com"
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -101,6 +115,11 @@ def get_inter_frame_data(req: InterFrameRequest):
     try:
         retriever = EdgarRetriever()
         data = retriever.get_inter_frameData(req.tag, req.year, req.quarter)
+
+        # Check if error message was returned
+        if isinstance(data, str):
+            raise HTTPException(status_code=404, detail=data)
+
         return {
             "tag": req.tag,
             "year": req.year,
@@ -108,6 +127,8 @@ def get_inter_frame_data(req: InterFrameRequest):
             "count": len(data),
             "data": data.to_dict(orient="records"),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -123,11 +144,17 @@ def get_intra_concept_data(req: IntraConceptRequest):
             )
 
         response = retriever.get_intra_conceptData(req.tag)
+
+        # Check if error message was returned
+        if isinstance(response, str):
+            raise HTTPException(status_code=404, detail=response)
+
         return {
             "ticker": req.ticker,
             "cik": retriever.current_cik,
             "tag": req.tag,
-            "data": response.json(),
+            "count": len(response),
+            "data": response.to_dict(orient="records"),
         }
     except HTTPException:
         raise
@@ -220,6 +247,107 @@ def calculate_percent_change(req: PercentChangeRequest):
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/financial/statement")
+def get_financial_statement(req: FinancialStatementRequest):
+    """Get financial statements (income statement, balance sheet, or cash flow)"""
+    try:
+        retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
+        if retriever.current_cik is None:
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
+        stmt = retriever.get_financial_statement_user(
+            statement_type=req.statement_type,
+            periods=req.periods,
+            annual=req.annual,
+            concise_format=req.concise_format,
+        )
+
+        # Convert to dict for JSON response
+        return {
+            "ticker": req.ticker,
+            "cik": retriever.current_cik,
+            "statement_type": req.statement_type,
+            "periods": req.periods,
+            "annual": req.annual,
+            "data": str(stmt),  # Financial statement as string representation
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/financial/statement-llm")
+def get_financial_statement_llm(req: FinancialStatementRequest):
+    """Get financial statements formatted for LLM context processing"""
+    try:
+        retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
+        if retriever.current_cik is None:
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
+        stmt = retriever._get_financial_statement_process(
+            statement_type=req.statement_type,
+            periods=req.periods,
+            annual=req.annual,
+            concise_format=req.concise_format,
+        )
+
+        return {
+            "ticker": req.ticker,
+            "cik": retriever.current_cik,
+            "statement_type": req.statement_type,
+            "periods": req.periods,
+            "annual": req.annual,
+            "llm_context": stmt,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/company/info")
+def get_company_info(req: CompanyInfoRequest):
+    """Get basic company information"""
+    try:
+        retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
+        if retriever.current_cik is None:
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
+        info = retriever.get_company_info()
+
+        return {"ticker": req.ticker, "cik": retriever.current_cik, "info": str(info)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/company/info-llm")
+def get_company_info_llm(req: CompanyInfoRequest):
+    """Get basic company information formatted for LLM context"""
+    try:
+        retriever = EdgarRetriever(user_agent=req.user_agent, ticker=req.ticker)
+        if retriever.current_cik is None:
+            raise HTTPException(
+                status_code=404, detail=f"No CIK found for ticker: {req.ticker}"
+            )
+
+        info = retriever._get_company_info()
+
+        return {"ticker": req.ticker, "cik": retriever.current_cik, "llm_context": info}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
