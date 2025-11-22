@@ -1,11 +1,9 @@
-version: "3.9"
-
 services:
   # Open WebUI Service
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
-    restart: always
+    restart: unless-stopped
     ports:
       - "3000:8080"
     environment:
@@ -13,33 +11,99 @@ services:
       OPENAI_API_BASE_URL: https://api.deepseek.com/v1
     volumes:
       - open-webui-data:/app/backend/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
-  # Piper Service
+  # Piper TTS Service
   tts:
-    build: ./tts
+    build:
+      context: ./tts
+      dockerfile: dockerfile
     container_name: piper-tts
-    restart: always
+    restart: unless-stopped
     ports:
       - "5500:5500"
     environment:
       PIPER_VOICES: en_US-amy-medium
     volumes:
       - piper-voices:/voices
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5500/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
 
   # Sentiment Analyzer Service
   sentiment-analyzer:
-    build: ./sentiment
+    build:
+      context: ./sentiment
+      dockerfile: dockerfile
     container_name: sentiment-analyzer
-    restart: always
+    restart: unless-stopped
     ports:
       - "5501:5501"
     environment:
-      # Use your existing DeepSeek key or set OPENAI_API_KEY directly in a .env file
-      OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
-      OPENAI_API_BASE_URL: https://api.deepseek.com/v1
-      # DeepSeek model (not gpt-3.5-turbo)
-      OPENAI_MODEL: deepseek-chat
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5501/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # Email Scheduler Service
+  email-scheduler:
+    build:
+      context: ./email
+      dockerfile: dockerfile
+    container_name: email-scheduler
+    restart: unless-stopped
+    ports:
+      - "5502:5502"
+    environment:
+      GMAIL_CREDENTIALS: ${GMAIL_CREDENTIALS}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5502/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
 volumes:
   open-webui-data:
+    driver: local
   piper-voices:
+    driver: local
+
+networks:
+  default:
+    name: astra-network
