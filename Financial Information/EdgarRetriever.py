@@ -4,8 +4,6 @@ import matplotlib.ticker as mticker
 from edgar import Company,set_identity
 
 
-#%%
-
 class EdgarRetriever:
     def __init__(self, user_agent="email@address.com", ticker=None):
         self.headers = {'User-Agent': user_agent}
@@ -106,7 +104,11 @@ class EdgarRetriever:
         frameData = requests.get(
             f"https://data.sec.gov/api/xbrl/frames/us-gaap/{tag}/USD/CY{schedule}.json", 
             headers=self.headers)
-        frameData = pd.DataFrame(frameData.json()['data'])
+        
+        try:
+            frameData = pd.DataFrame(frameData.json()['data'])
+        except (KeyError, IndexError):
+            return f"No frame data found for tag: {tag}, year: {year}, quarter: {quarter}"
         
         return frameData
 
@@ -119,6 +121,11 @@ class EdgarRetriever:
             headers=self.headers
             )
         
+        try:
+            conceptData = pd.DataFrame(conceptData.json()['units']['USD'])
+        except (KeyError, IndexError):
+            return f"No concept data found for ticker: {self.current_ticker}, CIK: {self.current_cik} and tag: {tag}"
+
         return conceptData
     
 
@@ -151,6 +158,71 @@ class EdgarRetriever:
             return pd.DataFrame(float_shares)
         except (KeyError, IndexError):
             return f"No float shares data found for ticker: {self.current_ticker}"
+        
+
+    def get_financial_statement_user(self, statement_type='balance_sheet', periods=1, annual=False, concise_format=True):
+        """
+        Confidence is the possibility of it being accurate due to changing reporting standards over time
+        Retrieve financial statements for the current company.
+        statement_type: 'income_statement', 'balance_sheet', or 'cash_flow'
+        periods: number of periods to retrieve
+        concise_format: if True, formats large numbers (e.g., 1,000,000 as 1.0M)
+        Returns a pandas DataFrame.
+        """
+        set_identity(self.headers['User-Agent'])
+        company = Company(self.current_cik)
+        
+        if statement_type == 'income_statement':
+            stmt = company.income_statement(periods=periods, annual=annual, concise_format=concise_format)
+        elif statement_type == 'balance_sheet':
+            stmt = company.balance_sheet(periods=periods, annual=annual, concise_format=concise_format)
+        elif statement_type == 'cash_flow':
+            stmt = company.cash_flow(periods=periods, annual=annual, concise_format=concise_format)
+        else:
+            raise ValueError("Invalid statement_type. Choose from 'income_statement', 'balance_sheet', or 'cash_flow'.")
+
+        return stmt
+    
+
+    def _get_financial_statement_process(self, statement_type='balance_sheet', periods=1, annual=False, concise_format=True):
+        """
+        NOTE, THIS IS FOR PROCESSING THE DATA INTO LLM CONTEXT FORMAT NOT FOR DISPLAYING TO THE USER
+        Confidence is the possibility of it being accurate due to changing reporting standards over time
+        Retrieve financial statements for the current company.
+        statement_type: 'income_statement', 'balance_sheet', or 'cash_flow'
+        periods: number of periods to retrieve
+        concise_format: if True, formats large numbers (e.g., 1,000,000 as 1.0M)
+        Returns a pandas DataFrame.
+        """
+        set_identity(self.headers['User-Agent'])
+        company = Company(self.current_cik)
+        
+        if statement_type == 'income_statement':
+            stmt = company.income_statement(periods=periods, annual=annual, concise_format=concise_format).to_llm_context()
+        elif statement_type == 'balance_sheet':
+            stmt = company.balance_sheet(periods=periods, annual=annual, concise_format=concise_format).to_llm_context()
+        elif statement_type == 'cash_flow':
+            stmt = company.cash_flow(periods=periods, annual=annual, concise_format=concise_format).to_llm_context()
+        else:
+            raise ValueError("Invalid statement_type. Choose from 'income_statement', 'balance_sheet', or 'cash_flow'.")
+
+        return stmt
+    
+
+    def get_company_info(self):
+        """Retrieve basic company information as rich output."""
+        set_identity(self.headers['User-Agent'])
+        company = Company(self.current_cik)
+        return company
+
+
+    def _get_company_info(self):
+        """NOTE this is for processing only
+        Retrieve basic company information."""
+        set_identity(self.headers['User-Agent'])
+        company = Company(self.current_cik)
+        info = company.to_context()
+        return info
     
 
     def plot_2d(self, data, x_field, y_field, x_label=None, y_label=None, title=None, kind='line', use_sci=True):
@@ -251,32 +323,4 @@ class EdgarRetriever:
         return pct_change
 
 
-#---------------------------------------------------------------------------------------------#
-trial = EdgarRetriever(ticker="AAPL")
 
-#%%
-
-
-
-set_identity("your_email@example.com")
-
-# Get any public company
-company = Company('AAPL')  # Ticker symbol
-# or
-company = Company(320193)  # CIK number
-
-# Access key metrics instantly
-print(f"Shares Outstanding: {company.shares_outstanding:,.0f}")
-print(f"Public Float: ${company.public_float:,.0f}")
-
-# Get enhanced multi-period financial statements
-income_stmt = company.income_statement(periods=10)  # Shows multiple periods with hierarchy
-balance_sheet = company.balance_sheet()  
-cash_flow = company.cash_flow()
-
-print(income_stmt)  # Rich multi-period display
-
-# Get concise format for quick overview
-income_compact = company.income_statement(concise_format=True)
-print(income_compact)  # Shows $1.0B instead of $1,000,000,000
-# %%
