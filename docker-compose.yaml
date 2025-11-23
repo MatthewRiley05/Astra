@@ -98,6 +98,28 @@ services:
         reservations:
           memory: 128M
 
+  # Financial Data Service
+  financial-data:
+    build:
+      context: ./finance
+      dockerfile: dockerfile
+    container_name: financial-data
+    restart: unless-stopped
+    ports:
+      - "5503:5503"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5503/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
 volumes:
   open-webui-data:
     driver: local
