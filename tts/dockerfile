@@ -1,12 +1,37 @@
 FROM python:3.11-slim
 
-# System Dependencies
-RUN apt-get update && apt-get install -y curl ffmpeg && rm -rf /var/lib/apt/lists/*
+# Non-root user for security
+RUN useradd -m -u 1000 appuser
+
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    curl \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+# Copy requirements first for better layer caching
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY app.py ./
+
+# Create voices directory and set permissions
+RUN mkdir -p /voices \
+    && chown -R appuser:appuser /app /voices
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5500/health || exit 1
+
 EXPOSE 5500
+
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5500"]
