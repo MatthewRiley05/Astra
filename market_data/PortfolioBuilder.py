@@ -341,16 +341,16 @@ def get_list_of_screened_stocks(
         predef_query=predef_query, count=count, session=session, headers=headers
     )
     df = screener.screen_predefined()
-    
+
     # Check if DataFrame is empty or missing symbol column
     if df.empty:
         return []
-    
+
     if "symbol" not in df.columns:
         raise ValueError(
             f"Screener response missing 'symbol' column. Available columns: {list(df.columns)}"
         )
-    
+
     screened_stocks = list(df["symbol"])
     return screened_stocks
 
