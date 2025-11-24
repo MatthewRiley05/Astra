@@ -8,8 +8,6 @@
 | 22096687D | Jonah Chua             |
 | 22096321D | Dominique Pesengco     |
 
-> **Note:** Please update the table above with actual student IDs and names of all group members.
-
 ---
 
 ## Project Overview
