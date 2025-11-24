@@ -335,12 +335,23 @@ def get_list_of_screened_stocks(
 ):
     """
     Wrapper function to get a list of screened stocks using yf_screener class.
-    Returns a dataframe of screened stocks.
+    Returns a list of ticker symbols.
     """
     screener = yf_screener(
         predef_query=predef_query, count=count, session=session, headers=headers
     )
-    screened_stocks = list(screener.screen_predefined()["symbol"])
+    df = screener.screen_predefined()
+    
+    # Check if DataFrame is empty or missing symbol column
+    if df.empty:
+        return []
+    
+    if "symbol" not in df.columns:
+        raise ValueError(
+            f"Screener response missing 'symbol' column. Available columns: {list(df.columns)}"
+        )
+    
+    screened_stocks = list(df["symbol"])
     return screened_stocks
 
 
