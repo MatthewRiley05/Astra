@@ -2,12 +2,11 @@
 
 ## Group Members
 
-| Student ID | Name |
-|------------|------|
-| [ID_1] | [Name_1] |
-| [ID_2] | [Name_2] |
-| [ID_3] | [Name_3] |
-| [ID_4] | [Name_4] |
+|Student ID |          Name          |
+|-----------|------------------------|
+| 23102891D | Matthew Riley Raymundo |
+| 22096687D | Jonah Chua             |
+| 22096321D | Dominique Pesengco     |
 
 > **Note:** Please update the table above with actual student IDs and names of all group members.
 
