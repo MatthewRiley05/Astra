@@ -3,40 +3,51 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
-import ipywidgets as widgets
 import warnings
-import yfinance as yf
-from yfinance.screener import screen
 import requests
 import time
 from pathlib import Path
 
-#%%
-Headers = {'User-Agent': "email@address.com"}
+# Try to import screener, fall back if not available
+try:
+    from yfinance.screener import screen
+
+    SCREENER_AVAILABLE = True
+except ImportError:
+    SCREENER_AVAILABLE = False
+    screen = None
+
+Headers = {"User-Agent": "email@address.com"}
+
 
 def fetch_possible_stocks(Headers):
     """
     Fetches US stock tickers from the Edgar database.
     Returns a dataframe of stock tickers
     """
-    
+
     companyTickers = requests.get(
-        "https://www.sec.gov/files/company_tickers_exchange.json",
-        headers=Headers
-        )
+        "https://www.sec.gov/files/company_tickers_exchange.json", headers=Headers
+    )
 
-    #convert to pandas dataframe
-    companyData = pd.DataFrame(companyTickers.json()['data'], columns=companyTickers.json()['fields'])
+    # convert to pandas dataframe
+    companyData = pd.DataFrame(
+        companyTickers.json()["data"], columns=companyTickers.json()["fields"]
+    )
     # format cik, add leading 0s
-    companyData['cik'] = companyData['cik'].apply(lambda x: str(x).zfill(10))
+    companyData["cik"] = companyData["cik"].apply(lambda x: str(x).zfill(10))
 
-    exchanges = ['Nasdaq', 'NYSE', 'CBOE']
-    companyData = companyData[companyData['exchange'].isin(exchanges)].reset_index(drop=True)
+    exchanges = ["Nasdaq", "NYSE", "CBOE"]
+    companyData = companyData[companyData["exchange"].isin(exchanges)].reset_index(
+        drop=True
+    )
 
-    return companyData  
+    return companyData
 
 
-def fetch_company_sic(companyData, location=None, headers=Headers, requests_per_second=10, max_retries=3):
+def fetch_company_sic(
+    companyData, location=None, headers=Headers, requests_per_second=10, max_retries=3
+):
     """
     Fetches SIC codes for each company in the provided dataframe.
     Respects rate limit (requests_per_second) and does simple retries with backoff.
@@ -44,23 +55,27 @@ def fetch_company_sic(companyData, location=None, headers=Headers, requests_per_
     """
     sic_codes = []
     sic_descriptions = []
-    delay = 1.0 / float(requests_per_second) if requests_per_second and requests_per_second > 0 else 0.1
+    delay = (
+        1.0 / float(requests_per_second)
+        if requests_per_second and requests_per_second > 0
+        else 0.1
+    )
 
     session = requests.Session()
     session.headers.update(headers)
 
     last_request = 0.0
-    for cik in companyData['cik']:
+    for cik in companyData["cik"]:
         url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-        sic = 'N/A'
-        desc = 'N/A'
+        sic = "N/A"
+        desc = "N/A"
         for attempt in range(1, max_retries + 1):
             try:
                 resp = session.get(url, timeout=10)
                 resp.raise_for_status()
                 j = resp.json()
-                sic = j.get('sic', 'N/A')
-                desc = j.get('sicDescription', 'N/A')
+                sic = j.get("sic", "N/A")
+                desc = j.get("sicDescription", "N/A")
                 break
             except requests.exceptions.RequestException:
                 backoff = 0.5 * (2 ** (attempt - 1))
@@ -75,15 +90,15 @@ def fetch_company_sic(companyData, location=None, headers=Headers, requests_per_
             time.sleep(sleep_for)
         last_request = time.monotonic()
 
-    companyData['SIC'] = sic_codes
-    companyData['SIC_Description'] = sic_descriptions
+    companyData["SIC"] = sic_codes
+    companyData["SIC_Description"] = sic_descriptions
 
     if location:
         p = Path(location)
         # if user passed a directory (exists or trailing slash), create dir and use default filename
-        if p.exists() and p.is_dir() or str(location).endswith(('/', '\\')):
+        if p.exists() and p.is_dir() or str(location).endswith(("/", "\\")):
             p.mkdir(parents=True, exist_ok=True)
-            out_path = p / 'company_tickers_with_sic.json'
+            out_path = p / "company_tickers_with_sic.json"
         # if it looks like a filename (has an extension), use it
         elif p.suffix:
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -91,22 +106,31 @@ def fetch_company_sic(companyData, location=None, headers=Headers, requests_per_
         else:
             # treat as directory
             p.mkdir(parents=True, exist_ok=True)
-            out_path = p / 'company_tickers_with_sic.json'
+            out_path = p / "company_tickers_with_sic.json"
 
-        companyData.to_json(str(out_path), orient='records', lines=True)
+        companyData.to_json(str(out_path), orient="records", lines=True)
 
     return companyData
 
 
-class yf_screener():
+class yf_screener:
     """
-    simple yfinance-based screener wrapper, ask the user if they want to use this to filter for stocks, 
+    simple yfinance-based screener wrapper, ask the user if they want to use this to filter for stocks,
     if yes call on available_predefined method.
 
     - If predef_query is provided (e.g. "aggressive_small_caps") the class will call
       yfinance.screener.screen(predef_query, count=...).
     """
-    def __init__(self, predef_query=None, count=10, size=None, max_results_cap=15, session=None, headers=None):
+
+    def __init__(
+        self,
+        predef_query=None,
+        count=10,
+        size=None,
+        max_results_cap=15,
+        session=None,
+        headers=None,
+    ):
         """Initialize the yf_screener.
 
         Args:
@@ -134,11 +158,14 @@ class yf_screener():
         Make sure to run this to have suggested inputs first.
         Tries to read `yf.PREDEFINED_SCREENER_QUERIES` and falls back gracefully.
         """
+        if not SCREENER_AVAILABLE:
+            return []
         try:
             return list(yf.PREDEFINED_SCREENER_QUERIES.keys())
         except Exception:
             try:
                 from yfinance.screener import PREDEFINED_SCREENER_QUERIES
+
                 return list(PREDEFINED_SCREENER_QUERIES.keys())
             except Exception:
                 return []
@@ -148,11 +175,16 @@ class yf_screener():
         if not isinstance(df, pd.DataFrame):
             return df
         if self.max_results_cap and len(df) > self.max_results_cap:
-            warnings.warn(f"max_results_cap exceeded: returning top {self.max_results_cap} results (requested {len(df)}).", UserWarning)
+            warnings.warn(
+                f"max_results_cap exceeded: returning top {self.max_results_cap} results (requested {len(df)}).",
+                UserWarning,
+            )
             return df.iloc[: self.max_results_cap].reset_index(drop=True)
         return df
 
-    def screen_predefined(self, predef_query=None, count=None, sortField=None, sortAsc=None):
+    def screen_predefined(
+        self, predef_query=None, count=None, sortField=None, sortAsc=None
+    ):
         """Run a predefined yfinance screener and return a normalized DataFrame.
 
         Args:
@@ -163,9 +195,17 @@ class yf_screener():
         Returns:
             pandas.DataFrame: normalized screener results (possibly truncated to max_results_cap).
         """
+        if not SCREENER_AVAILABLE:
+            warnings.warn(
+                "yfinance screener module is not available in this version", UserWarning
+            )
+            return pd.DataFrame()
+
         key = predef_query or self.predef_query
         if not key:
-            raise ValueError("No predefined query specified. Call with `predef_query` or set one at construction.")
+            raise ValueError(
+                "No predefined query specified. Call with `predef_query` or set one at construction."
+            )
         use_count = self.count if count is None else count
         try:
             # yfinance accepts `count` for predefined queries
@@ -255,9 +295,11 @@ class yf_screener():
             df["symbol"] = df["symbol"].astype(str).str.strip().str.upper()
 
         return df.reset_index(drop=True)
-    
 
-def get_closingPrice_list(ticker_list, start=None, end=None, period = '5d', interval="1d"):
+
+def get_closingPrice_list(
+    ticker_list, start=None, end=None, period="5d", interval="1d"
+):
     """
     Fetches market closing data for a given ticker/list of tickers from yfinance.
 
@@ -267,11 +309,13 @@ def get_closingPrice_list(ticker_list, start=None, end=None, period = '5d', inte
     1m interval is only available for last 7 days.
     """
     data = yf.Tickers(ticker_list)
-    close = data.history(start=start, end=end, period=period, interval=interval)['Close']
+    close = data.history(start=start, end=end, period=period, interval=interval)[
+        "Close"
+    ]
     return close
 
 
-def get_market_data(ticker, start=None, end=None, period = '5d', interval="1d"):
+def get_market_data(ticker, start=None, end=None, period="5d", interval="1d"):
     """
     INCLUDES HIGH, LOW, OPEN, CLOSE, VOLUME DATA
     ALSO INCLUDES INFO DICT WITH COMPANY METADATA SUCH AS BUSINESS SUMMARY
@@ -286,34 +330,105 @@ def get_market_data(ticker, start=None, end=None, period = '5d', interval="1d"):
     return data, info
 
 
-def get_list_of_screened_stocks(predef_query, count=10, size=None, max_results_cap=15, session=None, headers=None):
+def get_list_of_screened_stocks(
+    predef_query, count=10, size=None, max_results_cap=15, session=None, headers=None
+):
     """
     Wrapper function to get a list of screened stocks using yf_screener class.
     Returns a dataframe of screened stocks.
     """
-    screener = yf_screener(predef_query=predef_query, count=count, session=session, headers=headers)
-    screened_stocks = list(screener.screen_predefined()['symbol'])
+    screener = yf_screener(
+        predef_query=predef_query, count=count, session=session, headers=headers
+    )
+    screened_stocks = list(screener.screen_predefined()["symbol"])
     return screened_stocks
 
 
-def access_edgar_sic(companyData = None, path = None):
+def access_edgar_sic(companyData=None, path=None):
     """
     Function to access an existing companyData DataFrame variable or a file path containing a json file.
     """
     if companyData is not None:
-        df = companyData[['SIC', 'SIC_Description']]
+        df = companyData[["SIC", "SIC_Description"]]
     elif path is not None:
         p = Path(path)
         if p.exists() and p.is_file():
-            companyData = pd.read_json(str(p), orient='records', lines=True)
-            df = companyData[['SIC', 'SIC_Description']]
+            companyData = pd.read_json(str(p), orient="records", lines=True)
+            df = companyData[["SIC", "SIC_Description"]]
         else:
-            raise FileNotFoundError(f"The specified path does not exist or is not a file: {path}")
+            raise FileNotFoundError(
+                f"The specified path does not exist or is not a file: {path}"
+            )
     else:
         raise ValueError("Either companyData or path must be provided.")
-    
-    return df.drop_duplicates(subset=['SIC', 'SIC_Description'], keep = 'first').reset_index(drop=True)
 
-#------------------------------------------------------------------------------#
+    return df.drop_duplicates(
+        subset=["SIC", "SIC_Description"], keep="first"
+    ).reset_index(drop=True)
 
-access_edgar_sic(path=r"C:\Users\ejdch\Documents\COMP4434 Astra AI\Astra\FetchMarketData\company_tickers_with_sic.json")
+
+def filter_stocks_by_sic(sic_codes, companyData=None, path=None):
+    """
+    Filters the companyData DataFrame for stocks matching the provided SIC codes.
+    sic_codes should be a list of SIC codes to filter by.
+    Returns a list of ticker symbols.
+    """
+    if companyData is not None:
+        df = companyData
+    elif path is not None:
+        p = Path(path)
+        if p.exists() and p.is_file():
+            df = pd.read_json(str(p), orient="records", lines=True)
+        else:
+            raise FileNotFoundError(
+                f"The specified path does not exist or is not a file: {path}"
+            )
+    else:
+        raise ValueError("Either companyData or path must be provided.")
+
+    filtered_stocks = df[df["SIC"].isin(sic_codes)].reset_index(drop=True)
+    return filtered_stocks["ticker"].to_list()
+
+
+def get_riskfree_rate(data, holding_period="1 Mo"):
+    """
+    Fetches the current risk-free rate from the US Treasury website.
+    Returns the risk-free rate as a float.
+
+    Args:
+        data: This data parameter is the dataframe of closing price data
+        holding_period: The holding period for which the risk-free rate is needed
+                       ['1 Mo', '3 Mo', '6 Mo', '1 Yr', '2 Yr', '3 Yr', '5 Yr', '7 Yr', '10 Yr', '30 Yr']
+    """
+    start = str(data.index[0])[0:4]
+    end = str(data.index[-1])[0:4]
+
+    link_consol = {}
+    for i in range(int(start), int(end) + 1):
+        link_consol[i] = (
+            f"https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{i}/all?field_tdr_date_value={i}&type=daily_treasury_yield_curve&page&_format=csv"
+        )
+
+    for i in range(int(start), int(end) + 1):
+        if i == int(start):
+            # Read the first file and create the dataframe
+            yields = (
+                pd.read_csv(link_consol[i], parse_dates=["Date"], index_col=["Date"])
+                .resample("ME")
+                .mean()
+            )
+        else:
+            tmp = (
+                pd.read_csv(link_consol[i], parse_dates=["Date"], index_col=["Date"])
+                .resample("ME")
+                .mean()
+            )
+            yields = pd.concat([yields, tmp], axis=0)
+
+    yields = yields[~yields.index.duplicated(keep="first")]
+    if not yields.empty:
+        df = yields[holding_period]
+        risk_free_rate = df.mean()
+        return float(risk_free_rate) / 100  # Convert percentage to decimal
+    else:
+        raise ValueError("Could not fetch risk-free rate data.")
